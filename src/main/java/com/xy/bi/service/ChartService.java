@@ -43,5 +43,10 @@ public interface ChartService extends IService<Chart> {
      * @return
      */
     BiResponse genChartByAiMQ(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, User loginUser);
+
+
+
+    //构建给AI的用户输入
+    String buildAiUserInput(String csvData, GenChartByAiRequest request);
 }
 

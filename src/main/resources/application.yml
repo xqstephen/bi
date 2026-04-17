@@ -34,6 +34,9 @@ spring:
     password: admin
     host: 192.168.100.130
     port: 5672
+    listener:
+      simple:
+        acknowledge-mode: manual
 server:
   address: 0.0.0.0
   port: 8101

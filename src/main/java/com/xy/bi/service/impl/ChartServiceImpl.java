@@ -16,6 +16,7 @@ import com.xy.bi.mapper.ChartMapper;
 import com.xy.bi.service.UserService;
 import com.xy.bi.utils.ExcelToCSVUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -30,120 +31,85 @@ import java.util.concurrent.ThreadPoolExecutor;
 import static com.xy.bi.model.enums.ChartStatusEnum.*;
 
 /**
-* @author 25133
-* @description 针对表【chart(图表信息表)】的数据库操作Service实现
-* @createDate 2026-04-07 08:44:11
-*/
+ * 图表服务实现
+ * @author 25133
+ */
 @Service
 @RequiredArgsConstructor
-public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
-    implements ChartService{
+@Slf4j
+public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart> implements ChartService {
 
     private final UserService userService;
-
     private final AiManager aiManager;
     private final ChartMapper chartMapper;
-
     private final ThreadPoolExecutor threadPoolExecutor;
-
     private final BIMessageProducer biMessageProducer;
 
+    //常量定义
+    private static final long MAX_FILE_SIZE = 1024L * 1024L;
+    private static final String[] SUPPORTED_SUFFIXES = {"xlsx", "xls"};
+
+    //同步生成
     @Transactional
     @Override
     public BiResponse genChartByAi(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, User loginUser) {
-        //校验参数获取拼接的字符串
+        // 1. 公共参数校验 + 获取用户输入
+        validChartParams(multipartFile,genChartByAiRequest);
+        String csvData = extractCsvData(multipartFile);
+        String userInput = buildAiUserInput(csvData, genChartByAiRequest);
         String name = genChartByAiRequest.getName();
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         Long userId = loginUser.getId();
 
-        // 校验参数
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name)&&name.length() > 80, ErrorCode.PARAMS_ERROR, "名称过长");
-        //内存大小校验
-        final long size=1024L * 1024L;
-        ThrowUtils.throwIf(multipartFile.getSize() > size, ErrorCode.PARAMS_ERROR, "文件过大");
-        //支持的后缀
-        final String[] SUFFIX_ARRAY = new String[]{"xlsx", "xls"};
-        String suffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
-        ThrowUtils.throwIf(!ArrayUtils.contains(SUFFIX_ARRAY, suffix), ErrorCode.PARAMS_ERROR, "不支持的文件类型");
-        //用户输入
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求：").append("\n");
-        userInput.append(goal).append("\n");
-        //压缩后的数据
-        String csvData = null;
-        userInput.append("原始数据：").append("\n");
-        if (suffix == null ) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
-        }
-        csvData = ExcelToCSVUtils.excelToCSV(multipartFile);
-        userInput.append(csvData).append("\n");
-
-        String res = aiManager.doChat(userInput.toString());
+        // 2. 调用AI
+        String res = aiManager.doChat(userInput);
         String[] split = res.split("【【【【【");
         if (split.length < 3) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成格式错误");
         }
         String genChart = split[1].trim();
         String genResult = split[2].trim();
-        //插入到数据库
+
+        int firstEndIndex = genResult.indexOf("\"},");
+        if (firstEndIndex > 0) {
+            genResult = genResult.substring(0, firstEndIndex).trim();
+        }
+        // 3. 保存图表
         Chart chart = new Chart();
         chart.setName(name);
         chart.setGoal(goal);
         chart.setChartType(chartType);
-        //可改成单独保存
         chart.setChartData(csvData);
         chart.setGenChart(genChart);
         chart.setGenResult(genResult);
         chart.setUserId(userId);
+        chart.setStatus(SUCCESS.getStatus());
         this.save(chart);
-        //获取chartId,分表保存数据
-        Long chartId = chart.getId();
-//        saveCsvData(chartId, result.csvData);
-        //封装返回
+
+        // 4. 返回
         BiResponse biResponse = new BiResponse();
         biResponse.setGenChart(genChart);
         biResponse.setGenResult(genResult);
-        biResponse.setChartId(chartId);
+        biResponse.setChartId(chart.getId());
         return biResponse;
     }
 
-
-
+    //异步生成
     @Override
     @Transactional
     public BiResponse genCharAsynctByAi(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, User loginUser) {
-        //校验参数获取拼接的字符串
-        //校验参数获取拼接的字符串
+        // 公共校验 + 获取输入
+        validChartParams(multipartFile,genChartByAiRequest);
+        String csvData = extractCsvData(multipartFile);
+        String userInput = buildAiUserInput(csvData, genChartByAiRequest);
         String name = genChartByAiRequest.getName();
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         Long userId = loginUser.getId();
 
-        // 校验参数
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name)&&name.length() > 80, ErrorCode.PARAMS_ERROR, "名称过长");
-        //内存大小校验
-        final long size=1024L * 1024L;
-        ThrowUtils.throwIf(multipartFile.getSize() > size, ErrorCode.PARAMS_ERROR, "文件过大");
-        //支持的后缀
-        final String[] SUFFIX_ARRAY = new String[]{"xlsx", "xls"};
-        String suffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
-        ThrowUtils.throwIf(!ArrayUtils.contains(SUFFIX_ARRAY, suffix), ErrorCode.PARAMS_ERROR, "不支持的文件类型");
-        //用户输入
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求：").append("\n");
-        userInput.append(goal).append("\n");
-        //压缩后的数据
-        String csvData = null;
-        userInput.append("原始数据：").append("\n");
-        if (suffix == null ) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
-        }
-        csvData = ExcelToCSVUtils.excelToCSV(multipartFile);
-        userInput.append(csvData).append("\n");
-        //先保存未生成完的图表的前置参数
+
+        // 保存初始记录
         Chart chart = new Chart();
         chart.setName(name);
         chart.setGoal(goal);
@@ -152,74 +118,62 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         chart.setUserId(userId);
         this.save(chart);
         Long chartId = chart.getId();
-//        saveCsvData(chartId, result.csvData);
-        //异步生成图表
-        CompletableFuture.runAsync(()->{
-            Chart updateChart = new Chart();
-            updateChart.setId(chartId);
-            updateChart.setStatus(RUNNING.getStatus());
-            boolean b = this.updateById(updateChart);
-            if (!b) {
-                handleChartUpdateError(chartId,"更新图表状态失败");
-                return;
+
+        // 异步执行
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 更新为执行中
+                updateChartStatus(chartId, RUNNING.getStatus());
+
+                // AI生成
+                String res = aiManager.doChat(userInput);
+                String[] split = res.split("【【【【【");
+                if (split.length < 3) {
+                    handleChartUpdateError(chartId, "AI返回格式错误");
+                    return;
+                }
+                String genChart = split[1].trim();
+                String genResult = split[2].trim();
+
+                int firstEndIndex = genResult.indexOf("\"},");
+                if (firstEndIndex > 0) {
+                    genResult = genResult.substring(0, firstEndIndex).trim();
+                }
+
+                // 更新成功
+                Chart updateChart = new Chart();
+                updateChart.setId(chartId);
+                updateChart.setGenChart(genChart);
+                updateChart.setGenResult(genResult);
+                updateChart.setStatus(SUCCESS.getStatus());
+                boolean updateSuccess = this.updateById(updateChart);
+                if (!updateSuccess) {
+                    handleChartUpdateError(chartId, "更新图表结果失败");
+                }
+            } catch (Exception e) {
+                log.error("异步生成图表异常，chartId:{}", chartId, e);
+                handleChartUpdateError(chartId, "系统异常：" + e.getMessage());
             }
-            String res = aiManager.doChat(userInput.toString());
-            String[] split = res.split("【【【【【");
-            if (split.length < 3) {
-                handleChartUpdateError(chartId,"AI生成错误");
-                return;
-            }
-            String genChart = split[1].trim();
-            String genResult = split[2].trim();
-            Chart updateChartResult = new Chart();
-            updateChartResult.setId(chartId);
-            updateChartResult.setGenChart(genChart);
-            updateChartResult.setGenResult(genResult);
-            updateChartResult.setStatus(SUCCESS.getStatus());
-            boolean b1 = this.updateById(updateChartResult);
-            if (!b1) {
-                handleChartUpdateError(chartId,"更新图表成功状态失败");
-                return;
-            }
-        },threadPoolExecutor);
+        }, threadPoolExecutor);
+
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(chartId);
         return biResponse;
     }
 
-
+    //MQ生成
     @Override
     @Transactional
     public BiResponse genChartByAiMQ(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, User loginUser) {
-        //校验参数获取拼接的字符串
+        validChartParams(multipartFile,genChartByAiRequest);
+        String csvData = extractCsvData(multipartFile);
         String name = genChartByAiRequest.getName();
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         Long userId = loginUser.getId();
 
-        // 校验参数
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
-        ThrowUtils.throwIf(StringUtils.isNotBlank(name)&&name.length() > 80, ErrorCode.PARAMS_ERROR, "名称过长");
-        //内存大小校验
-        final long size=1024L * 1024L;
-        ThrowUtils.throwIf(multipartFile.getSize() > size, ErrorCode.PARAMS_ERROR, "文件过大");
-        //支持的后缀
-        final String[] SUFFIX_ARRAY = new String[]{"xlsx", "xls"};
-        String suffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
-        ThrowUtils.throwIf(!ArrayUtils.contains(SUFFIX_ARRAY, suffix), ErrorCode.PARAMS_ERROR, "不支持的文件类型");
-        //用户输入
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求：").append("\n");
-        userInput.append(goal).append("\n");
-        //压缩后的数据
-        String csvData = null;
-        userInput.append("原始数据：").append("\n");
-        if (suffix == null ) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件类型错误");
-        }
-        csvData = ExcelToCSVUtils.excelToCSV(multipartFile);
-        userInput.append(csvData).append("\n");
-        //先保存未生成完的图表的前置参数
+
+        // 保存
         Chart chart = new Chart();
         chart.setName(name);
         chart.setGoal(goal);
@@ -228,99 +182,115 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         chart.setUserId(userId);
         this.save(chart);
         Long chartId = chart.getId();
-//        saveCsvData(chartId, result.csvData);
-        //异步生成图表
-        Chart updateChart = new Chart();
-        updateChart.setId(chartId);
-        updateChart.setStatus(RUNNING.getStatus());
-        boolean b = this.updateById(updateChart);
-        if (!b) {
-            handleChartUpdateError(chartId,"更新图表状态失败");
-        }
+
+        // 更新状态为执行中
+        updateChartStatus(chartId, RUNNING.getStatus());
+
+        // 发送MQ
         biMessageProducer.sendMessage(String.valueOf(chartId));
+
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(chartId);
         return biResponse;
     }
 
+    //构建给AI的用户输入
+    @Override
+    public String buildAiUserInput(String csvData, GenChartByAiRequest request) {
+        //拼接AI输入
+        StringBuilder userInput = new StringBuilder();
+        userInput.append("分析需求：").append("\n");
+        userInput.append(request.getGoal()).append("\n");
+        userInput.append("原始数据：").append("\n");
+        userInput.append(csvData).append("\n");
+        return userInput.toString();
+    }
 
+    //参数校验
+    private void validChartParams(MultipartFile file, GenChartByAiRequest request) {
+        String goal = request.getGoal();
+        String name = request.getName();
 
-    private void handleChartUpdateError(Long id,String execMessage) {
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标不能为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 80, ErrorCode.PARAMS_ERROR, "图表名称不能超过80字符");
+        ThrowUtils.throwIf(file.getSize() > MAX_FILE_SIZE, ErrorCode.PARAMS_ERROR, "文件不能超过1MB");
+
+        String suffix = FileUtil.getSuffix(file.getOriginalFilename());
+        ThrowUtils.throwIf(!ArrayUtils.contains(SUPPORTED_SUFFIXES, suffix), ErrorCode.PARAMS_ERROR, "仅支持xlsx/xls文件");
+    }
+
+    //获取CSV数据
+    private String extractCsvData(MultipartFile file) {
+        return ExcelToCSVUtils.excelToCSV(file);
+    }
+
+    //更新图表状态
+    private void updateChartStatus(Long chartId, String status) {
+        Chart updateChart = new Chart();
+        updateChart.setId(chartId);
+        updateChart.setStatus(status);
+        boolean success = this.updateById(updateChart);
+        if (!success) {
+            handleChartUpdateError(chartId, "更新图表状态失败");
+        }
+    }
+
+    //错误处理
+    private void handleChartUpdateError(Long id, String execMessage) {
         Chart updateChart = new Chart();
         updateChart.setId(id);
         updateChart.setStatus(FAILED.getStatus());
         updateChart.setExecMessage(execMessage);
         boolean updateResult = this.updateById(updateChart);
-        if (!updateResult){
-            log.error("更新图表状态失败"+id+","+execMessage);
+        if (!updateResult) {
+            log.error("更新图表失败状态失败，chartId:{}, execMessage:{}", id, execMessage);
         }
     }
 
-
-    /**
-     * 保存csv数据到数据库
-     * @param chartId
-     * @param csvData
-     */
+    //分表存储CSV
     private void saveCsvData(Long chartId, String csvData) {
-        //1. 创建表
-        //1.1 获取csv数据中的字段（第一行数据）
         String[] split = csvData.split("\n");
-        if (split.length == 0){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "csv数据为空");
-        }
-        String[] column = split[0].split(",");
-        int expectedColumnCount = column.length;
+        ThrowUtils.throwIf(split.length == 0, ErrorCode.PARAMS_ERROR, "CSV数据不能为空");
 
-        //1.2 拼接建表语句
+        String[] columns = split[0].split(",");
+        int expectedColumnCount = columns.length;
         String tableName = "chart_" + chartId;
-        StringBuilder createTableSql = new StringBuilder();
-        createTableSql.append("CREATE TABLE IF NOT EXISTS ");
-        createTableSql.append(tableName).append(" (");
-        //拼接列名
-        for (int i = 0; i < column.length; i++) {
-            //去空
-            String columnName=column[i].trim();
-            // 只处理空列名或纯数字列名
-            if (StringUtils.isBlank(columnName)) {
-                columnName = "column_" + i;
+
+        // 建表
+        StringBuilder createSql = new StringBuilder();
+        createSql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        for (int i = 0; i < columns.length; i++) {
+            String col = columns[i].trim();
+            if (StringUtils.isBlank(col)) {
+                col = "column_" + i;
             }
-            //拼接
-            createTableSql.append("`").append(columnName).append("` ").append("VARCHAR(255)").append("\n");
-            if(i != column.length - 1){
-                createTableSql.append(",");
+            createSql.append("`").append(col).append("` VARCHAR(255)");
+            if (i != columns.length - 1) {
+                createSql.append(",");
             }
         }
-        createTableSql.append(");");
-        chartMapper.createTable(createTableSql.toString());
+        createSql.append(");");
+        chartMapper.createTable(createSql.toString());
 
-        //2. 插入数据
+        // 插入数据
         StringBuilder insertSql = new StringBuilder();
         insertSql.append("INSERT INTO ").append(tableName).append(" VALUES ");
+        boolean first = true;
 
-        boolean isFirstRow = true;
-        for (int i = 1; i < split.length; i++){
+        for (int i = 1; i < split.length; i++) {
             String line = split[i].trim();
-            if (StringUtils.isBlank(line)) {
-                continue;
-            }
+            if (StringUtils.isBlank(line)) continue;
 
             String[] data = line.split(",", -1);
-
-            if (!isFirstRow) {
-                insertSql.append(",");
-            }
-            isFirstRow = false;
+            if (!first) insertSql.append(",");
+            first = false;
 
             insertSql.append("(");
-            for (int j = 0; j < expectedColumnCount; j++){
-                if (j > 0) {
-                    insertSql.append(",");
-                }
-
+            for (int j = 0; j < expectedColumnCount; j++) {
+                if (j > 0) insertSql.append(",");
                 if (j < data.length && StringUtils.isNotBlank(data[j])) {
-                    String value = data[j].trim().replace("'", "''");
-                    insertSql.append("'").append(value).append("'");
+                    String val = data[j].trim().replace("'", "''");
+                    insertSql.append("'").append(val).append("'");
                 } else {
                     insertSql.append("NULL");
                 }
@@ -331,59 +301,8 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         chartMapper.insertData(insertSql.toString());
     }
 
-
-    private List<Map<String, Object>> queryChartData(final Long chartId) {
+    //查询图表数据
+    private List<Map<String, Object>> queryChartData(Long chartId) {
         return chartMapper.queryData(chartId);
     }
-
-
-
-
-
-//        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
-//                "分析需求：\n" +
-//                "{数据分析的需求或者目标}\n" +
-//                "原始数据：\n" +
-//                "{csv格式的原始数据，用,作为分隔符}\n" +
-//                "请根据这两部分内容，按照以下指定格式生成内容（此外不要输出任何多余的开头、结尾、注释）\n" +
-//                "【【【【【\n" +
-//                "{前端 Echarts V5 的 option 配置对象js代码，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
-//                "【【【【【\n" +
-//                "{明确的数据分析结论、越详细越好，不要生成多余的注释}";
-    // 分析需求：
-    // 分析网站用户的增长情况
-    // 原始数据：
-    // 日期,用户数
-    // 1号,10
-    // 2号,20
-    // 3号,30
-
-
-    //    /**
-//     * 读取 CSV 文件内容
-//     * @param file 上传的 CSV 文件
-//     * @return CSV 格式的字符串
-//     */
-//    private String readCsvFile(MultipartFile file) {
-//        try (InputStream inputStream = file.getInputStream();
-//             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-//
-//            StringBuilder csvContent = new StringBuilder();
-//            String line;
-//
-//            while ((line = reader.readLine()) != null) {
-//                csvContent.append(line).append("\n");
-//            }
-//
-//            return csvContent.toString();
-//
-//        } catch (IOException e) {
-//            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "读取CSV文件失败: " + e.getMessage());
-//        }
-//    }
-
 }
-
-
-
-

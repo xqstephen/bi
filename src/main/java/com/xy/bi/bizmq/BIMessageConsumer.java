@@ -5,6 +5,7 @@ import com.xy.bi.common.ErrorCode;
 import com.xy.bi.constant.BiMqConstant;
 import com.xy.bi.exception.BusinessException;
 import com.xy.bi.manager.AiManager;
+import com.xy.bi.model.dto.chart.GenChartByAiRequest;
 import com.xy.bi.model.entity.Chart;
 import com.xy.bi.service.ChartService;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class BIMessageConsumer {
     @RabbitListener(queues = {BiMqConstant.BI_QUEUE_NAME}, ackMode = "MANUAL")
     public void receiveMessage(String message, Channel channel,
                                @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
+        log.info("receive message: {}", message);
         try {
             // 消息为空就消费失败
             if (StringUtils.isBlank(message)){
@@ -42,14 +44,26 @@ public class BIMessageConsumer {
             if (StringUtils.isBlank(chartData)){
                 throwExceptionAndNackMessage(channel,deliveryTag);
             }
+            //构建GenChartByAiRequest
+            GenChartByAiRequest genChartByAiRequest = new GenChartByAiRequest();
+            genChartByAiRequest.setName(chart.getName());
+            genChartByAiRequest.setGoal(chart.getGoal());
+            genChartByAiRequest.setChartType(chart.getChartType());
+            //获取输入提示词
+            String userInput = chartService.buildAiUserInput(chartData, genChartByAiRequest);
             //异步生成图表
-            String res = aiManager.doChat(chartData);
+            String res = aiManager.doChat(userInput);
             String[] split = res.split("【【【【【");
             if (split.length < 3) {
                 handleChartUpdateError(chartId,"AI生成错误");
             }
             String genChart = split[1].trim();
             String genResult = split[2].trim();
+
+            int firstEndIndex = genResult.indexOf("\"},");
+            if (firstEndIndex > 0) {
+                genResult = genResult.substring(0, firstEndIndex).trim();
+            }
             Chart updateChartResult = new Chart();
             updateChartResult.setId(chartId);
             updateChartResult.setGenChart(genChart);

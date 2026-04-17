@@ -21,7 +21,7 @@ public class BIMessageProducer {
      */
     public void sendMessage(String message) {
         // 使用rabbitTemplate的convertAndSend方法将消息发送到指定的交换机和路由键
-        rabbitTemplate.convertAndSend(BiMqConstant.BI_EXCHANGE_NAME, BiMqConstant.BI_QUEUE_NAME, message);
+        rabbitTemplate.convertAndSend(BiMqConstant.BI_EXCHANGE_NAME, BiMqConstant.BI_ROUTING_KEY, message);
     }
 
 }
