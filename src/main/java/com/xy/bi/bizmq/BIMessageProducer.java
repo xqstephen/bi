@@ -6,6 +6,10 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 
+/**
+ * BI消息生产者
+ * @author 25133
+ */
 // 使用@Component注解标记该类为一个组件，让Spring框架能够扫描并将其纳入管理
 @Component
 public class BIMessageProducer {

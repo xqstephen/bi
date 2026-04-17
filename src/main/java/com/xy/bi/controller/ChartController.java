@@ -30,6 +30,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.multipart.MultipartFile;
 
 
+/**
+ * 图表接口
+ *
+ * @author 25133
+ */
+
 @RestController
 @RequestMapping("/chart")
 @Slf4j

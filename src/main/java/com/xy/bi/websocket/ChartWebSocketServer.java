@@ -9,6 +9,11 @@ import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * WebSocket 服务
+ *
+ * @author 25133
+ */
 @Component
 @ServerEndpoint("/ws/chart/{userId}")
 @Slf4j

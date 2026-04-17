@@ -4,6 +4,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 生成图表通知
+ *
+ * @author 25133
+ */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

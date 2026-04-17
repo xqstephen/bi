@@ -9,6 +9,10 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * RabbitMQ配置类
+ * @author 25133
+ */
 @Configuration
 public class RabbitMQConfig {
 

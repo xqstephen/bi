@@ -8,7 +8,11 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
+/**
+ * 线程池配置
+ *
+ * @author 25133
+ */
 @Configuration
 public class ThreadPoolConfig {
 

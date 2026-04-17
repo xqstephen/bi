@@ -2,6 +2,10 @@ package com.xy.bi.model.dto.chart;
 
 import lombok.Data;
 
+/**
+ * AI生成图表请求
+ * @author 25133
+ */
 @Data
 public class GenChartByAiRequest {
 

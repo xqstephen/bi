@@ -10,9 +10,8 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 
 /**
-* @author 25133
-* @description 针对表【chart(图表信息表)】的数据库操作Service
-* @createDate 2026-04-07 08:44:11
+ * 图表服务
+ * @author 25133
 */
 public interface ChartService extends IService<Chart> {
 

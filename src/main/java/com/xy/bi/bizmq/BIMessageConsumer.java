@@ -21,6 +21,11 @@ import java.io.IOException;
 
 import static com.xy.bi.model.enums.ChartStatusEnum.*;
 
+/**
+ * BI消息消费者
+ * @author 25133
+ */
+
 @Component
 @Slf4j
 public class BIMessageConsumer {

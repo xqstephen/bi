@@ -1,5 +1,10 @@
 package com.xy.bi.constant;
 
+/**
+ * BI消息队列常量
+ * @author 25133
+ */
+
 public interface BiMqConstant {
 
     String BI_EXCHANGE_NAME = "bi_exchange";

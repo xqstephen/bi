@@ -7,10 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
-* @author 25133
-* @description 针对表【chart(图表信息表)】的数据库操作Mapper
-* @createDate 2026-04-07 08:44:11
-* @Entity com.xy.bi.model.entity.Chart
+ * 图表数据库操作
+ * @author 25133
 */
 public interface ChartMapper extends BaseMapper<Chart> {
 

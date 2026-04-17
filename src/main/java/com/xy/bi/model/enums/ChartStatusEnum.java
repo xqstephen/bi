@@ -1,5 +1,10 @@
 package com.xy.bi.model.enums;
 
+/**
+ * 图表状态枚举
+ *
+ * @author 25133
+ */
 public enum ChartStatusEnum {
     WAIT("wait"),
     RUNNING("running"),

@@ -9,6 +9,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ *腾讯云深度学习服务客户端配置
+ * @author 25133
+ */
 @Configuration
 @Data
 @ConfigurationProperties(prefix = "tencent.deepseek.client")

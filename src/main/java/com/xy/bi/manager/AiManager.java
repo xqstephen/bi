@@ -13,6 +13,10 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 
+/**
+ * AI调用
+ * @author 25133
+ */
 @Slf4j
 @Service
 public class AiManager {
