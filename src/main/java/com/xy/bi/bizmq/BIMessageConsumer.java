@@ -8,6 +8,7 @@ import com.xy.bi.manager.AiManager;
 import com.xy.bi.model.dto.chart.GenChartByAiRequest;
 import com.xy.bi.model.entity.Chart;
 import com.xy.bi.service.ChartService;
+import com.xy.bi.websocket.ChartWebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -69,12 +70,14 @@ public class BIMessageConsumer {
             updateChartResult.setGenChart(genChart);
             updateChartResult.setGenResult(genResult);
             updateChartResult.setStatus(SUCCESS.getStatus());
-            boolean b1 = chartService.updateById(updateChartResult);
-            if (!b1) {
-                channel.basicNack(deliveryTag,false,false);
-                handleChartUpdateError(chartId,"更新图表成功状态失败");
+            boolean success = chartService.updateById(updateChartResult);
+            if (success){
+                ChartWebSocketServer.pushChartResult(chart.getUserId(),chartId,SUCCESS.getStatus(),"图表生成成功");
+                channel.basicAck(deliveryTag, false);  // 确认消息
+            }else {
+                handleChartUpdateError(chartId,"更新图表失败");
+                throwExceptionAndNackMessage(channel,deliveryTag);
             }
-            channel.basicAck(deliveryTag, false);  // 确认消息
         } catch (IOException e) {
             log.error("消息队列异步出错,{}",e);
         }
@@ -100,6 +103,7 @@ public class BIMessageConsumer {
         updateChart.setStatus(FAILED.getStatus());
         updateChart.setExecMessage(execMessage);
         boolean updateResult = chartService.updateById(updateChart);
+        ChartWebSocketServer.pushChartResult(updateChart.getUserId(),id,FAILED.getStatus(),"图表生成失败");
         if (!updateResult){
             log.error("更新图表状态失败{},{}", id, execMessage);
         }

@@ -15,6 +15,7 @@ import com.xy.bi.service.ChartService;
 import com.xy.bi.mapper.ChartMapper;
 import com.xy.bi.service.UserService;
 import com.xy.bi.utils.ExcelToCSVUtils;
+import com.xy.bi.websocket.ChartWebSocketServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
@@ -150,6 +151,7 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart> implements
                 if (!updateSuccess) {
                     handleChartUpdateError(chartId, "更新图表结果失败");
                 }
+                ChartWebSocketServer.pushChartResult(chart.getUserId(),chartId,SUCCESS.getStatus(),"图表生成成功");
             } catch (Exception e) {
                 log.error("异步生成图表异常，chartId:{}", chartId, e);
                 handleChartUpdateError(chartId, "系统异常：" + e.getMessage());
@@ -242,6 +244,7 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart> implements
         updateChart.setStatus(FAILED.getStatus());
         updateChart.setExecMessage(execMessage);
         boolean updateResult = this.updateById(updateChart);
+        ChartWebSocketServer.pushChartResult(updateChart.getUserId(),id,FAILED.getStatus(),"图表生成失败");
         if (!updateResult) {
             log.error("更新图表失败状态失败，chartId:{}, execMessage:{}", id, execMessage);
         }
