@@ -83,8 +83,13 @@ public class BIMessageConsumer {
                 handleChartUpdateError(chartId,"更新图表失败");
                 throwExceptionAndNackMessage(channel,deliveryTag);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("消息队列异步出错,{}",e);
+            try {
+                channel.basicNack(deliveryTag, false, false);
+            } catch (IOException ioException) {
+                log.error("拒绝消息失败",ioException);
+            }
         }
     }
     /**

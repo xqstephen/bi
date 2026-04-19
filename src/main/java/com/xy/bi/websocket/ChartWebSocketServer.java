@@ -43,6 +43,10 @@ public class ChartWebSocketServer {
      * 给指定用户推送图表生成结果
      */
     public static void pushChartResult(Long userId, Long chartId, String status, String msg) {
+        if (userId == null) {
+            log.warn("userId 为空，无法推送");
+            return;
+        }
         Session session = USER_SESSION_MAP.get(userId);
         if (session == null || !session.isOpen()) {
             log.warn("用户 {} 不在线，不推送", userId);

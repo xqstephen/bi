@@ -56,17 +56,17 @@ public class ChartController {
     /**
      * 创建
      *
-     * @param ChartAddRequest
+     * @param chartAddRequest
      * @param request
      * @return
      */
     @PostMapping("/add")
-    public BaseResponse<Long> addChart(@RequestBody ChartAddRequest ChartAddRequest, HttpServletRequest request) {
-        if (ChartAddRequest == null) {
+    public BaseResponse<Long> addChart(@RequestBody ChartAddRequest chartAddRequest, HttpServletRequest request) {
+        if (chartAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Chart chart = new Chart();
-        BeanUtils.copyProperties(ChartAddRequest, chart);
+        BeanUtils.copyProperties(chartAddRequest, chart);
         User loginUser = userService.getLoginUser(request);
         chart.setUserId(loginUser.getId());
         boolean result = chartService.save(chart);
@@ -255,7 +255,7 @@ public class ChartController {
         return queryWrapper;
     }
 
-    //todo 测试
+
     /**
      * 智能分析
      *

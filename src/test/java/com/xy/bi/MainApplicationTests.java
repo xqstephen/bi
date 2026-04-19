@@ -124,4 +124,6 @@ class MainApplicationTests {
         chartMapper.insertData(insertSql.toString());
     }
 
+
+
 }

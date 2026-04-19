@@ -202,7 +202,7 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart> implements
         //拼接AI输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：").append("\n");
-        userInput.append(request.getGoal()).append("\n");
+        userInput.append(request.getGoal()).append(",").append(request.getChartType()).append("\n");
         userInput.append("原始数据：").append("\n");
         userInput.append(csvData).append("\n");
         return userInput.toString();

@@ -125,7 +125,7 @@ public class UserController {
     // region 增删改查
 
     /**
-     * 创建用户
+     * 创建用户 (仅管理员)
      *
      * @param userAddRequest
      * @param request
@@ -149,7 +149,7 @@ public class UserController {
     }
 
     /**
-     * 删除用户
+     * 删除用户 (仅管理员)
      *
      * @param deleteRequest
      * @param request
@@ -166,7 +166,7 @@ public class UserController {
     }
 
     /**
-     * 更新用户
+     * 更新用户 (仅管理员)
      *
      * @param userUpdateRequest
      * @param request
